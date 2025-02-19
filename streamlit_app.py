@@ -50,22 +50,23 @@ def get_ai_solutions(issue):
         return f"❌ Error fetching AI response: {str(e)}"
 
 # Function to predict resolution time
+# ✅ Function to train the resolution time model
 def train_resolution_time_model(df):
-    df = df.copy()
     le_priority = LabelEncoder()
     le_status = LabelEncoder()
 
-    df["Priority"] = le_priority.fit_transform(df["Priority"])
-    df["Status"] = le_status.fit_transform(df["Status"])
+    # ✅ Ensure encoders know all possible values before fitting
+    le_priority.fit(POSSIBLE_PRIORITIES)
+    le_status.fit(POSSIBLE_STATUSES)  # Ensure "Open" is always in the classes
 
-    X = df[["Priority", "Status"]]
-    y = np.random.randint(2, 48, size=len(df))  # Simulated resolution time in hours
+    df["Priority"] = df["Priority"].apply(lambda x: x if x in POSSIBLE_PRIORITIES else "Medium")
+    df["Status"] = df["Status"].apply(lambda x: x if x in POSSIBLE_STATUSES else "Open")
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
+    df["Priority"] = le_priority.transform(df["Priority"])
+    df["Status"] = le_status.transform(df["Status"])
 
-    return model, le_priority, le_status
+    return le_priority, le_status
+
 
 # ✅ Limit Default Tickets to 5
 if "df" not in st.session_state:
