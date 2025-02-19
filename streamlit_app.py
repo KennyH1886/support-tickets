@@ -22,7 +22,7 @@ if not api_key and "openai" in st.secrets:
 if not api_key:
     st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` in GitHub Codespaces secrets.")
 else:
-    openai.api_key = api_key
+    client = openai.OpenAI(api_key=api_key)  # ✅ Use the new OpenAI client
     st.success("✅ OpenAI API key loaded successfully!")
 
 # ✅ Define possible categories
@@ -59,14 +59,14 @@ def get_ai_solutions(issue):
         return "⚠️ AI support is disabled due to missing API key."
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an AI assistant for technical support."},
                 {"role": "user", "content": f"Provide a possible solution for the issue: {issue}"},
             ]
         )
-        return response.choices[0].message["content"]
+        return response.choices[0].message.content
     except Exception as e:
         return f"❌ Error fetching AI response: {str(e)}"
 
