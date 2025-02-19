@@ -14,10 +14,8 @@ from sklearn.model_selection import train_test_split
 # ✅ Streamlit Page Configuration
 st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫", layout="wide")
 
-# ✅ Load API Key Securely from GitHub Codespaces Secrets or .env
-api_key = os.getenv("OPENAI_API_KEY")  # Default load from environment
-
-# If running in GitHub Codespaces, check Streamlit secrets
+# ✅ Load API Key Securely
+api_key = os.getenv("OPENAI_API_KEY")
 if not api_key and "openai" in st.secrets:
     api_key = st.secrets["openai"].get("api_key", "")
 
@@ -27,7 +25,7 @@ else:
     openai.api_key = api_key
     st.success("✅ OpenAI API key loaded successfully!")
 
-# ✅ Define all possible labels globally
+# ✅ Define possible categories
 POSSIBLE_PRIORITIES = ["High", "Medium", "Low"]
 POSSIBLE_STATUSES = ["Open", "In Progress", "Closed"]
 
@@ -55,7 +53,7 @@ def train_resolution_time_model(df):
 
     return model, le_priority, le_status
 
-# ✅ Initialize AI-powered solution function
+# ✅ Function to get AI-generated solutions
 def get_ai_solutions(issue):
     if not api_key:
         return "⚠️ AI support is disabled due to missing API key."
@@ -72,7 +70,7 @@ def get_ai_solutions(issue):
     except Exception as e:
         return f"❌ Error fetching AI response: {str(e)}"
 
-# ✅ Ensure session state holds model and data
+# ✅ Ensure model and encoders are stored in session state
 if "df" not in st.session_state:
     np.random.seed(42)
     issue_descriptions = [
@@ -92,8 +90,13 @@ if "df" not in st.session_state:
     }
 
     df = pd.DataFrame(data)
+    model, le_priority, le_status = train_resolution_time_model(df)
+
+    # ✅ Store trained model and encoders in session state
     st.session_state.df = df
-    st.session_state.model, st.session_state.le_priority, st.session_state.le_status = train_resolution_time_model(df)
+    st.session_state.model = model
+    st.session_state.le_priority = le_priority
+    st.session_state.le_status = le_status
 
 # ✅ "Clear All Tickets" Button
 if st.button("🗑️ Clear All Tickets"):
@@ -112,15 +115,19 @@ if submitted:
     if len(st.session_state.df) > 0:
         recent_ticket_number = int(max(st.session_state.df.ID).split("-")[1])
     else:
-        recent_ticket_number = 1006  # Default if no tickets exist
+        recent_ticket_number = 1006
 
     today = datetime.datetime.now().strftime("%m-%d-%Y")
 
-    # Ensure priority and status are in known categories
-    priority_encoded = st.session_state.le_priority.transform([priority])[0]
-    status_encoded = st.session_state.le_status.transform(["Open"])[0]
+    # ✅ Ensure encoders exist before transformation
+    if "le_priority" in st.session_state and "le_status" in st.session_state:
+        priority_encoded = st.session_state.le_priority.transform([priority])[0]
+        status_encoded = st.session_state.le_status.transform(["Open"])[0]
 
-    predicted_time = st.session_state.model.predict([[priority_encoded, status_encoded]])[0]
+        predicted_time = st.session_state.model.predict([[priority_encoded, status_encoded]])[0]
+    else:
+        st.error("❌ Model and encoders not initialized properly. Try restarting the app.")
+        st.stop()
 
     # Get AI solution
     ai_solution = get_ai_solutions(issue)
@@ -167,28 +174,3 @@ num_open_tickets = len(st.session_state.df[st.session_state.df.Status == "Open"]
 col1.metric(label="🟢 Open Tickets", value=num_open_tickets)
 col2.metric(label="⏳ First Response Time (hrs)", value=5.2, delta=-1.5)
 col3.metric(label="⏱️ Average Resolution Time (hrs)", value=16, delta=2)
-
-# ✅ Show Charts
-st.write("##### 📅 Ticket status per month")
-status_plot = (
-    alt.Chart(edited_df)
-    .mark_bar()
-    .encode(
-        x="month(Date Submitted):O",
-        y="count():Q",
-        xOffset="Status:N",
-        color="Status:N",
-    )
-    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
-)
-st.altair_chart(status_plot, use_container_width=True, theme="streamlit")
-
-st.write("##### 🔥 Current Ticket Priorities")
-priority_plot = (
-    alt.Chart(edited_df)
-    .mark_arc()
-    .encode(theta="count():Q", color="Priority:N")
-    .properties(height=300)
-    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
-)
-st.altair_chart(priority_plot, use_container_width=True, theme="streamlit")
