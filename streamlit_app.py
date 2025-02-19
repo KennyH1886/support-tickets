@@ -12,20 +12,30 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 # ✅ FIX 1: Move `st.set_page_config` to the very top
-st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫")
+st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫", layout="wide")
 
 # ✅ FIX 2: Load API Key from .env (without secrets.toml)
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
-# ✅ If API key is missing, show a warning
+# ✅ If API key is missing, show a warning and disable AI features
 if not api_key:
     st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` as an environment variable.")
-
-openai.api_key = api_key
+else:
+    openai.api_key = api_key
+    st.success("✅ OpenAI API key loaded successfully!")
 
 # ✅ Streamlit UI settings
 st.title("🎫 AI-Powered Support Ticket System")
+
+# ✅ Theme Toggle
+if "theme" not in st.session_state:
+    st.session_state.theme = "light"
+
+theme_button = st.button("🌓 Toggle Theme")
+if theme_button:
+    st.session_state.theme = "dark" if st.session_state.theme == "light" else "light"
+    st.experimental_rerun()
 
 # ✅ Define all possible labels to avoid unseen label errors
 POSSIBLE_PRIORITIES = ["High", "Medium", "Low"]
@@ -57,6 +67,9 @@ def train_resolution_time_model(df):
 
 # ✅ Function to generate AI-powered solutions
 def get_ai_solutions(issue):
+    if not api_key:
+        return "⚠️ AI support is disabled due to missing API key."
+
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -165,3 +178,4 @@ num_open_tickets = len(df[df.Status == "Open"])
 col1.metric(label="🟢 Open Tickets", value=num_open_tickets)
 col2.metric(label="⏳ First Response Time (hrs)", value=5.2, delta=-1.5)
 col3.metric(label="⏱️ Average Resolution Time (hrs)", value=16, delta=2)
+
