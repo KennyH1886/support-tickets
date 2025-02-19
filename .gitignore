@@ -1,4 +1,3 @@
-.streamlit/secrets.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -7,6 +6,8 @@ __pycache__/
 
 # C extensions
 *.so
+# Ignore secrets
+.streamlit/secrets.toml
 
 # Distribution / packaging
 .Python
@@ -37,6 +38,11 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Ignore secrets
+.streamlit/secrets.toml
+
+
 
 # Unit test / coverage reports
 htmlcov/

@@ -1,85 +1,121 @@
+import streamlit as st
 import datetime
 import random
-
 import altair as alt
 import numpy as np
 import pandas as pd
-import streamlit as st
+import openai
+import os
+from dotenv import load_dotenv
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 
-# Show app title and description.
-st.set_page_config(page_title="Support tickets", page_icon="🎫")
-st.title("🎫 Support tickets")
-st.write(
-    """
-    This app shows how you can build an internal tool in Streamlit. Here, we are 
-    implementing a support ticket workflow. The user can create a ticket, edit 
-    existing tickets, and view some statistics.
-    """
-)
+# ✅ Load API Key from .env or Streamlit Secrets
+load_dotenv()
+api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = api_key
 
-# Create a random Pandas dataframe with existing tickets.
-if "df" not in st.session_state:
+# ✅ Streamlit UI settings
+st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫")
+st.title("🎫 AI-Powered Support Ticket System")
 
-    # Set seed for reproducibility.
-    np.random.seed(42)
+# ✅ Define all possible labels to avoid unseen label errors
+POSSIBLE_PRIORITIES = ["High", "Medium", "Low"]
+POSSIBLE_STATUSES = ["Open", "In Progress", "Closed"]
 
-    # Make up some fake issue descriptions.
-    issue_descriptions = [
-        "Network connectivity issues in the office",
-        "Software application crashing on startup",
-        "Printer not responding to print commands",
-        "Email server downtime",
-        "Data backup failure",
-        "Login authentication problems",
-        "Website performance degradation",
-        "Security vulnerability identified",
-        "Hardware malfunction in the server room",
-        "Employee unable to access shared files",
-        "Database connection failure",
-        "Mobile application not syncing data",
-        "VoIP phone system issues",
-        "VPN connection problems for remote employees",
-        "System updates causing compatibility issues",
-        "File server running out of storage space",
-        "Intrusion detection system alerts",
-        "Inventory management system errors",
-        "Customer data not loading in CRM",
-        "Collaboration tool not sending notifications",
-    ]
+# ✅ Function to train the resolution time model
+def train_resolution_time_model(df):
+    le_priority = LabelEncoder()
+    le_status = LabelEncoder()
 
-    # Generate the dataframe with 100 rows/tickets.
-    data = {
-        "ID": [f"TICKET-{i}" for i in range(1100, 1000, -1)],
-        "Issue": np.random.choice(issue_descriptions, size=100),
-        "Status": np.random.choice(["Open", "In Progress", "Closed"], size=100),
-        "Priority": np.random.choice(["High", "Medium", "Low"], size=100),
-        "Date Submitted": [
-            datetime.date(2023, 6, 1) + datetime.timedelta(days=random.randint(0, 182))
-            for _ in range(100)
-        ],
-    }
-    df = pd.DataFrame(data)
+    # ✅ Ensure encoders know all possible values
+    le_priority.fit(POSSIBLE_PRIORITIES)
+    le_status.fit(POSSIBLE_STATUSES)
 
-    # Save the dataframe in session state (a dictionary-like object that persists across
-    # page runs). This ensures our data is persisted when the app updates.
-    st.session_state.df = df
+    df["Priority"] = df["Priority"].apply(lambda x: x if x in POSSIBLE_PRIORITIES else "Medium")
+    df["Status"] = df["Status"].apply(lambda x: x if x in POSSIBLE_STATUSES else "Open")
 
+    df["Priority"] = le_priority.transform(df["Priority"])
+    df["Status"] = le_status.transform(df["Status"])
 
-# Show a section to add a new ticket.
-st.header("Add a ticket")
+    X = df[["Priority", "Status"]]
+    y = np.random.randint(2, 48, size=len(df))  # Simulated resolution time
 
-# We're adding tickets via an `st.form` and some input widgets. If widgets are used
-# in a form, the app will only rerun once the submit button is pressed.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+
+    return model, le_priority, le_status
+
+# ✅ Function to generate AI-powered solutions
+def get_ai_solutions(issue):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an AI assistant for technical support."},
+                {"role": "user", "content": f"Provide a possible solution for the issue: {issue}"},
+            ]
+        )
+        return response.choices[0].message["content"]
+    except Exception as e:
+        return f"❌ Error fetching AI response: {str(e)}"
+
+# ✅ Generate initial dataset with 5 tickets
+issue_descriptions = [
+    "Network connectivity issues in the office",
+    "Software application crashing on startup",
+    "Printer not responding to print commands",
+    "Email server downtime",
+    "Data backup failure",
+]
+
+data = {
+    "ID": [f"TICKET-{i}" for i in range(1005, 1000, -1)],  # Only 5 tickets now
+    "Issue": np.random.choice(issue_descriptions, size=5),
+    "Status": np.random.choice(POSSIBLE_STATUSES, size=5),
+    "Priority": np.random.choice(POSSIBLE_PRIORITIES, size=5),
+    "Date Submitted": [datetime.date(2023, 6, 1) + datetime.timedelta(days=random.randint(0, 30)) for _ in range(5)],
+}
+
+df = pd.DataFrame(data)
+model, le_priority, le_status = train_resolution_time_model(df)
+
+# ✅ "Clear All Tickets" Button
+if st.button("🗑️ Clear All Tickets"):
+    df = pd.DataFrame(columns=["ID", "Issue", "Status", "Priority", "Date Submitted"])
+    st.success("✅ All tickets have been cleared.")
+
+# ✅ Add a Ticket Form
+st.header("Add a Ticket")
+
 with st.form("add_ticket_form"):
     issue = st.text_area("Describe the issue")
-    priority = st.selectbox("Priority", ["High", "Medium", "Low"])
+    priority = st.selectbox("Priority", POSSIBLE_PRIORITIES)
     submitted = st.form_submit_button("Submit")
 
 if submitted:
-    # Make a dataframe for the new ticket and append it to the dataframe in session
-    # state.
-    recent_ticket_number = int(max(st.session_state.df.ID).split("-")[1])
+    recent_ticket_number = int(max(df.ID).split("-")[1]) if len(df) > 0 else 1006
     today = datetime.datetime.now().strftime("%m-%d-%Y")
+
+    # ✅ Fix: Ensure priority and status are in the known categories
+    if priority not in le_priority.classes_:
+        st.warning(f"Unknown priority '{priority}', defaulting to 'Medium'.")
+        priority = "Medium"
+    priority_encoded = le_priority.transform([priority])[0]
+
+    # ✅ Fix: Ensure "Open" exists in the encoder before transforming
+    if "Open" not in le_status.classes_:
+        st.warning("Status 'Open' is missing in encoder, refitting model.")
+        le_status.fit(POSSIBLE_STATUSES)  # Refitting the model
+    status_encoded = le_status.transform(["Open"])[0]
+
+    predicted_time = model.predict([[priority_encoded, status_encoded]])[0]
+
+    # Get AI solution
+    ai_solution = get_ai_solutions(issue)
+
     df_new = pd.DataFrame(
         [
             {
@@ -88,62 +124,43 @@ if submitted:
                 "Status": "Open",
                 "Priority": priority,
                 "Date Submitted": today,
+                "Predicted Resolution Time (hrs)": round(predicted_time, 2),
+                "AI Suggested Solution": ai_solution,
             }
         ]
     )
 
-    # Show a little success message.
-    st.write("Ticket submitted! Here are the ticket details:")
+    st.write("🎉 **Ticket submitted! Here are the details:**")
     st.dataframe(df_new, use_container_width=True, hide_index=True)
-    st.session_state.df = pd.concat([df_new, st.session_state.df], axis=0)
 
-# Show section to view and edit existing tickets in a table.
-st.header("Existing tickets")
-st.write(f"Number of tickets: `{len(st.session_state.df)}`")
+    df = pd.concat([df_new, df], axis=0)
 
-st.info(
-    "You can edit the tickets by double clicking on a cell. Note how the plots below "
-    "update automatically! You can also sort the table by clicking on the column headers.",
-    icon="✍️",
-)
+# ✅ Show Existing Tickets
+st.header("Existing Tickets")
+st.write(f"Number of tickets: `{len(df)}`")
 
-# Show the tickets dataframe with `st.data_editor`. This lets the user edit the table
-# cells. The edited data is returned as a new dataframe.
 edited_df = st.data_editor(
-    st.session_state.df,
+    df,
     use_container_width=True,
     hide_index=True,
     column_config={
-        "Status": st.column_config.SelectboxColumn(
-            "Status",
-            help="Ticket status",
-            options=["Open", "In Progress", "Closed"],
-            required=True,
-        ),
-        "Priority": st.column_config.SelectboxColumn(
-            "Priority",
-            help="Priority",
-            options=["High", "Medium", "Low"],
-            required=True,
-        ),
+        "Status": st.column_config.SelectboxColumn("Status", options=POSSIBLE_STATUSES, required=True),
+        "Priority": st.column_config.SelectboxColumn("Priority", options=POSSIBLE_PRIORITIES, required=True),
     },
-    # Disable editing the ID and Date Submitted columns.
     disabled=["ID", "Date Submitted"],
 )
 
-# Show some metrics and charts about the ticket.
-st.header("Statistics")
+# ✅ Show Ticket Stats
+st.header("📊 Ticket Statistics")
 
-# Show metrics side by side using `st.columns` and `st.metric`.
 col1, col2, col3 = st.columns(3)
-num_open_tickets = len(st.session_state.df[st.session_state.df.Status == "Open"])
-col1.metric(label="Number of open tickets", value=num_open_tickets, delta=10)
-col2.metric(label="First response time (hours)", value=5.2, delta=-1.5)
-col3.metric(label="Average resolution time (hours)", value=16, delta=2)
+num_open_tickets = len(df[df.Status == "Open"])
+col1.metric(label="🟢 Open Tickets", value=num_open_tickets)
+col2.metric(label="⏳ First Response Time (hrs)", value=5.2, delta=-1.5)
+col3.metric(label="⏱️ Average Resolution Time (hrs)", value=16, delta=2)
 
-# Show two Altair charts using `st.altair_chart`.
-st.write("")
-st.write("##### Ticket status per month")
+# ✅ Show Charts
+st.write("##### 📅 Ticket status per month")
 status_plot = (
     alt.Chart(edited_df)
     .mark_bar()
@@ -153,20 +170,16 @@ status_plot = (
         xOffset="Status:N",
         color="Status:N",
     )
-    .configure_legend(
-        orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5
-    )
+    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
 )
 st.altair_chart(status_plot, use_container_width=True, theme="streamlit")
 
-st.write("##### Current ticket priorities")
+st.write("##### 🔥 Current Ticket Priorities")
 priority_plot = (
     alt.Chart(edited_df)
     .mark_arc()
     .encode(theta="count():Q", color="Priority:N")
     .properties(height=300)
-    .configure_legend(
-        orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5
-    )
+    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
 )
 st.altair_chart(priority_plot, use_container_width=True, theme="streamlit")
