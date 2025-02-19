@@ -6,38 +6,24 @@ import numpy as np
 import pandas as pd
 import openai
 import os
-from dotenv import load_dotenv
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
-# ✅ FIX 1: Move `st.set_page_config` to the very top
+# ✅ Set Streamlit UI settings
 st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫", layout="wide")
 
-# ✅ FIX 2: Load API Key from .env (without secrets.toml)
-load_dotenv()
+# ✅ Load API Key from GitHub Codespaces Secrets
 api_key = os.getenv("OPENAI_API_KEY")
 
 # ✅ If API key is missing, show a warning and disable AI features
 if not api_key:
-    st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` as an environment variable.")
+    st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` as a GitHub Codespaces Secret.")
 else:
     openai.api_key = api_key
     st.success("✅ OpenAI API key loaded successfully!")
 
-# ✅ Streamlit UI settings
-st.title("🎫 AI-Powered Support Ticket System")
-
-# ✅ Theme Toggle
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"
-
-theme_button = st.button("🌓 Toggle Theme")
-if theme_button:
-    st.session_state.theme = "dark" if st.session_state.theme == "light" else "light"
-    st.experimental_rerun()
-
-# ✅ Define all possible labels to avoid unseen label errors
+# ✅ Define possible labels
 POSSIBLE_PRIORITIES = ["High", "Medium", "Low"]
 POSSIBLE_STATUSES = ["Open", "In Progress", "Closed"]
 
@@ -45,8 +31,7 @@ POSSIBLE_STATUSES = ["Open", "In Progress", "Closed"]
 def train_resolution_time_model(df):
     le_priority = LabelEncoder()
     le_status = LabelEncoder()
-
-    # ✅ Ensure encoders know all possible values
+    
     le_priority.fit(POSSIBLE_PRIORITIES)
     le_status.fit(POSSIBLE_STATUSES)
 
@@ -82,7 +67,7 @@ def get_ai_solutions(issue):
     except Exception as e:
         return f"❌ Error fetching AI response: {str(e)}"
 
-# ✅ Generate initial dataset with 5 tickets
+# ✅ Generate initial dataset
 issue_descriptions = [
     "Network connectivity issues in the office",
     "Software application crashing on startup",
@@ -92,7 +77,7 @@ issue_descriptions = [
 ]
 
 data = {
-    "ID": [f"TICKET-{i}" for i in range(1005, 1000, -1)],  # Only 5 tickets now
+    "ID": [f"TICKET-{i}" for i in range(1005, 1000, -1)],
     "Issue": np.random.choice(issue_descriptions, size=5),
     "Status": np.random.choice(POSSIBLE_STATUSES, size=5),
     "Priority": np.random.choice(POSSIBLE_PRIORITIES, size=5),
@@ -119,21 +104,17 @@ if submitted:
     recent_ticket_number = int(max(df.ID).split("-")[1]) if len(df) > 0 else 1006
     today = datetime.datetime.now().strftime("%m-%d-%Y")
 
-    # ✅ Fix: Ensure priority and status are in the known categories
     if priority not in le_priority.classes_:
         st.warning(f"Unknown priority '{priority}', defaulting to 'Medium'.")
         priority = "Medium"
     priority_encoded = le_priority.transform([priority])[0]
 
-    # ✅ Fix: Ensure "Open" exists in the encoder before transforming
     if "Open" not in le_status.classes_:
         st.warning("Status 'Open' is missing in encoder, refitting model.")
-        le_status.fit(POSSIBLE_STATUSES)  # Refitting the model
+        le_status.fit(POSSIBLE_STATUSES)
     status_encoded = le_status.transform(["Open"])[0]
 
     predicted_time = model.predict([[priority_encoded, status_encoded]])[0]
-
-    # Get AI solution
     ai_solution = get_ai_solutions(issue)
 
     df_new = pd.DataFrame(
@@ -178,4 +159,3 @@ num_open_tickets = len(df[df.Status == "Open"])
 col1.metric(label="🟢 Open Tickets", value=num_open_tickets)
 col2.metric(label="⏳ First Response Time (hrs)", value=5.2, delta=-1.5)
 col3.metric(label="⏱️ Average Resolution Time (hrs)", value=16, delta=2)
-
