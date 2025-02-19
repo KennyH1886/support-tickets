@@ -11,18 +11,20 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
-# ✅ Load API Key from .env (No secrets.toml needed)
+# ✅ FIX 1: Move `st.set_page_config` to the very top
+st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫")
+
+# ✅ FIX 2: Load API Key from .env (without secrets.toml)
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
-# ✅ Warn if API key is missing
+# ✅ If API key is missing, show a warning
 if not api_key:
     st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` as an environment variable.")
 
 openai.api_key = api_key
 
 # ✅ Streamlit UI settings
-st.set_page_config(page_title="AI-Powered Support Tickets", page_icon="🎫")
 st.title("🎫 AI-Powered Support Ticket System")
 
 # ✅ Define all possible labels to avoid unseen label errors
@@ -163,28 +165,3 @@ num_open_tickets = len(df[df.Status == "Open"])
 col1.metric(label="🟢 Open Tickets", value=num_open_tickets)
 col2.metric(label="⏳ First Response Time (hrs)", value=5.2, delta=-1.5)
 col3.metric(label="⏱️ Average Resolution Time (hrs)", value=16, delta=2)
-
-# ✅ Show Charts
-st.write("##### 📅 Ticket status per month")
-status_plot = (
-    alt.Chart(edited_df)
-    .mark_bar()
-    .encode(
-        x="month(Date Submitted):O",
-        y="count():Q",
-        xOffset="Status:N",
-        color="Status:N",
-    )
-    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
-)
-st.altair_chart(status_plot, use_container_width=True, theme="streamlit")
-
-st.write("##### 🔥 Current Ticket Priorities")
-priority_plot = (
-    alt.Chart(edited_df)
-    .mark_arc()
-    .encode(theta="count():Q", color="Priority:N")
-    .properties(height=300)
-    .configure_legend(orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5)
-)
-st.altair_chart(priority_plot, use_container_width=True, theme="streamlit")
