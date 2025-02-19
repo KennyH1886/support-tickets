@@ -11,9 +11,14 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
-# ✅ Load API Key from .env or Streamlit Secrets
+# ✅ Load API Key from .env (No secrets.toml needed)
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
+
+# ✅ Warn if API key is missing
+if not api_key:
+    st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` as an environment variable.")
+
 openai.api_key = api_key
 
 # ✅ Streamlit UI settings
