@@ -1,3 +1,7 @@
+# ✅ Upgrade necessary packages for compatibility
+import os
+os.system("pip install --upgrade pip setuptools wheel")
+
 import streamlit as st
 import datetime
 import random
@@ -5,7 +9,6 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import openai
-import os
 from dotenv import load_dotenv
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
@@ -22,8 +25,7 @@ if not api_key and "openai" in st.secrets:
 if not api_key:
     st.warning("⚠️ OpenAI API key is missing! Set `OPENAI_API_KEY` in GitHub Codespaces secrets.")
 else:
-    client = openai.OpenAI(api_key=api_key)  # ✅ Use the new OpenAI client
-    st.success("✅ OpenAI API key loaded successfully!")
+    client = openai.OpenAI(api_key=api_key)  # ✅ Using OpenAI's correct API syntax
 
 # ✅ Define possible categories
 POSSIBLE_PRIORITIES = ["High", "Medium", "Low"]
